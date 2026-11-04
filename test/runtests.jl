@@ -28,11 +28,4 @@ test_fast_bAb(A, b) = @test fast_bAb(A, b) ≈ dot(b, A, b)
     test_fast_bAb(sprandn(100, 100, 0.05), randn(100))
     test_fast_bAb(randn(SMatrix{10, 10, Float64, 100}), randn(SVector{10, Float64}))
     test_fast_bAb(randn(MMatrix{4, 4, Float64, 16}), randn(MVector{4, Float64}))
-
-    # Base.cumsum!(A::AbstractVector)
-    x = [1, 2, 3, 4]
-    @test cumsum!(x) === x
-    @test x == [1, 3, 6, 10]
-    y = Float64[]
-    @test cumsum!(y) == Float64[]
 end

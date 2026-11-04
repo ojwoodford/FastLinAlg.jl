@@ -26,30 +26,6 @@ returning the minimum time per call in nanoseconds.
     return best
 end
 
-@noinline function bench_cumsum_inplace!(bufs::Vector{Vector{Float64}}, iters::Int, K::Int)
-    t0 = time_ns()
-    @inbounds for i in 1:iters
-        Base.inferencebarrier(cumsum!(bufs[(i & (K - 1)) + 1]))
-    end
-    return (time_ns() - t0) / iters
-end
-
-@noinline function bench_cumsum_2arg!(out::Vector{Float64}, bufs::Vector{Vector{Float64}}, iters::Int, K::Int)
-    t0 = time_ns()
-    @inbounds for i in 1:iters
-        Base.inferencebarrier(Base.cumsum!(out, bufs[(i & (K - 1)) + 1]))
-    end
-    return (time_ns() - t0) / iters
-end
-
-@noinline function bench_cumsum_allocating(x::Vector{Float64}, iters::Int)
-    t0 = time_ns()
-    for _ in 1:iters
-        Base.inferencebarrier(cumsum(x))
-    end
-    return (time_ns() - t0) / iters
-end
-
 function format_time(t_ns::Float64)
     if t_ns < 1000
         return string(round(t_ns, digits=2), " ns")
@@ -204,35 +180,6 @@ function run_speed_test(trials::Int=5)
         speedup = t_std / t_fast
         reduction = (1.0 - t_fast / t_std) * 100.0
         println("| $n × $n | $(nnz(A)) | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
-    end
-
-    # -------------------------------------------------------------------------
-    # 5. In-place Cumulative Sum: Base.cumsum!(A) vs Base implementations
-    # -------------------------------------------------------------------------
-    println("\n### 5. In-place Cumulative Sum: `cumsum!(A)` vs Standard Implementations\n")
-    println("| Vector Size | Allocating (`cumsum(x)`) | 2-Arg In-place (`cumsum!(out, x)`) | FastLinAlg 1-Arg (`cumsum!(x)`) | Speedup vs `cumsum` | Time Reduction |")
-    println("|:-----------:|:------------------------:|:----------------------------------:|:-------------------------------:|:--------------------:|:--------------:|")
-
-    for n in [8, 64, 512, 4096]
-        x = randn(n)
-        K = 64
-        iters = max(1000, 200_000 ÷ n)
-        bufs_fast = [copy(x) for _ in 1:K]
-        bufs_base = [copy(x) for _ in 1:K]
-        out = similar(x)
-
-        # Verification
-        test_buf = copy(x)
-        cumsum!(test_buf)
-        @assert test_buf ≈ cumsum(x)
-
-        t_alloc = minimum([bench_cumsum_allocating(x, iters) for _ in 1:trials])
-        t_2arg = minimum([bench_cumsum_2arg!(out, bufs_base, iters, K) for _ in 1:trials])
-        t_fast = minimum([bench_cumsum_inplace!(bufs_fast, iters, K) for _ in 1:trials])
-
-        speedup = t_alloc / t_fast
-        reduction = (1.0 - t_fast / t_alloc) * 100.0
-        println("| $n | $(format_time(t_alloc)) | $(format_time(t_2arg)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
     end
 
     println()

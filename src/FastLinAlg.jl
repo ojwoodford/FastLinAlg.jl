@@ -85,20 +85,6 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     return total
 end
 
-"""
-    Base.cumsum!(A::AbstractVector)
-
-Single-argument in-place cumulative sum overwriting `A` with `cumsum(A)` and returning `A`.
-"""
-function Base.cumsum!(A::AbstractVector)
-    total = zero(eltype(A))
-    @inbounds for ind in eachindex(A)
-        @fastmath total += A[ind]
-        A[ind] = total
-    end
-    return A
-end
-
 include("precompile.jl")
 
 end # module FastLinAlg

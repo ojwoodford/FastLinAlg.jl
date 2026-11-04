@@ -21,9 +21,6 @@ Standard Julia linear algebra is built around standard BLAS and LAPACK libraries
    - **Static Arrays**: `fast_bAb` compiles directly into unrolled SIMD instructions via `@turbo`, running **2.0x–2.5x faster** than standard static array dot products.
    - **Sparse Matrices**: `SparseArrays.dot(b, A, b)` scales each non-zero matrix element by $b_i$ individually, executing $O(\text{nnz})$ scalar multiplications with $b$. `fast_bAb` factors out $b_i$ per column—first computing the column inner product with $b$ and then multiplying by $b_i$ once per column ($O(N)$ multiplications)—achieving a **2.2x speedup** on sparse systems.
 
-4. **Zero-Allocation In-Place Mutation**:
-   `Base.cumsum!` only supports the 2-argument form `cumsum!(out, A)`, requiring callers to maintain an extra preallocated output buffer or allocate heap memory via `cumsum(A)`. `FastLinAlg` extends `Base.cumsum!(A)` with a 1-argument in-place overload utilizing `@fastmath` and `@inbounds`, eliminating intermediate allocations and running up to **4x faster** than allocating `cumsum(A)`.
-
 ## Performance Evaluation
 
 A benchmark script is provided in [`examples/speed_test.jl`](examples/speed_test.jl). It times all included functions against standard implementations across multiple input sizes using warmup cycles, minimum-time filtering over multiple trials, and compiler barriers to prevent constant folding.
@@ -99,21 +96,11 @@ Results collected on an Apple Silicon (M-series) CPU:
 | 200 × 200 | 1914 | ~1.80 μs | ~792.0 ns | ~2.3x | ~55.9% |
 | 1000 × 1000 | 49852 | ~46.49 μs | ~20.98 μs | ~2.2x | ~54.9% |
 
-#### 5. Cumulative Sum (`cumsum!(A)` vs Standard Implementations)
-
-| Vector Size | Base Allocating (`cumsum(x)`) | Base 2-Arg In-place (`cumsum!(out, x)`) | FastLinAlg 1-Arg (`cumsum!(x)`) | Speedup vs `cumsum` | Time Reduction |
-|:-----------:|:-----------------------------:|:---------------------------------------:|:-------------------------------:|:--------------------:|:--------------:|
-| 8 | ~13.8 ns | ~6.2 ns | ~3.4 ns | ~4.0x | ~75.3% |
-| 64 | ~80.7 ns | ~36.7 ns | ~30.3 ns | ~2.7x | ~62.4% |
-| 512 | ~672.9 ns | ~340.3 ns | ~448.1 ns | ~1.5x | ~33.4% |
-| 4096 | ~3.15 μs | ~2.54 μs | ~3.78 μs | ~0.8x | -20.1% |
-
 ### Key Takeaways
 
 - **Over 16x Faster Norm Computation**: `fast_norm` avoids multi-pass underflow/overflow scaling in BLAS `dnrm2`, reducing Euclidean norm latency by over 93% on vectors of length 64 to 4096.
 - **Zero Foreign Function Overhead**: `fast_dot` and `sqnorm` avoid BLAS library call and threading setup costs, offering ~2x–5x lower latency for small vectors and consistently lower time across all dimensions.
 - **Fast Quadratic Forms**: `fast_bAb` achieves ~2.2x–2.5x speedups across static arrays, dense multithreaded systems, and sparse CSC matrices by using optimal SIMD loop structures and factoring out per-column scalar multiplications.
-- **In-place Zero-Allocation Operations**: `Base.cumsum!(A)` mutates vectors in place with zero allocation overhead and a convenient 1-argument API.
 
 ## Externally Available Methods
 
@@ -155,14 +142,6 @@ Computes the quadratic form $b^T A b$ in a single pass with zero allocations:
 - For `StaticArray`: single-threaded SIMD via `LoopVectorization.@turbo`.
 - For `SparseMatrixCSC` and `Vector`: direct traversal over compressed sparse columns.
 
-### `Base.cumsum!`
-
-```julia
-cumsum!(A::AbstractVector) -> A
-```
-
-Single-argument in-place cumulative sum that mutates `A` so `A[k] = sum(A[1:k])` and returns `A`.
-
 ## Example
 
 ```julia
@@ -180,7 +159,4 @@ q1 = fast_bAb(A_dense, b)
 
 A_sparse = sprandn(100, 100, 0.1)
 q2 = fast_bAb(A_sparse, b)
-
-x = [1, 2, 3, 4]
-cumsum!(x) # [1, 3, 6, 10]
 ```

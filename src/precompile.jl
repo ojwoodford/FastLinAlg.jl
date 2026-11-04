@@ -35,9 +35,6 @@ using PrecompileTools
     m_sparse32[3, 3] = 1.0f0
     v_sparse32 = Float32[1.0, 2.0, 1.5]
 
-    # Int data (for cumsum! only)
-    v_int = [1, 2, 3, 4]
-
     @compile_workload begin
         # 1. Scalar functions (Float64 and Float32)
         sqnorm(3.0)
@@ -66,8 +63,5 @@ using PrecompileTools
         fast_bAb(m_sparse64, v_sparse64)
         fast_bAb(m_dense32, m_vec32)
         fast_bAb(m_sparse32, v_sparse32)
-
-        # 6. Base.cumsum! (Int only)
-        cumsum!(v_int)
     end
 end
