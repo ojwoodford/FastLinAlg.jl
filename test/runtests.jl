@@ -1,6 +1,6 @@
-using FastLinAlg, LinearAlgebra, StaticArrays, Test
+using FastNorm, LinearAlgebra, StaticArrays, Test
 
-@testset "FastLinAlg.jl" begin
+@testset "FastNorm.jl" begin
 
     @testset "sqnorm" begin
         # Scalars

@@ -1,5 +1,5 @@
-# Speed test comparing FastLinAlg primitives to standard Julia / LinearAlgebra implementations
-using FastLinAlg
+# Speed test comparing FastNorm primitives to standard Julia / LinearAlgebra implementations
+using FastNorm
 using LinearAlgebra
 using Random
 
@@ -61,14 +61,14 @@ end
 """
     run_speed_test(trials=5)
 
-Run comprehensive benchmarks comparing all FastLinAlg functions against standard implementations
+Run comprehensive benchmarks comparing all FastNorm functions against standard implementations
 and print Markdown-formatted performance summary tables.
 """
 function run_speed_test(trials::Int=5)
     Random.seed!(42)
 
     println("=" ^ 88)
-    println("FastLinAlg.jl Speed Test: FastLinAlg vs Standard Julia / LinearAlgebra")
+    println("FastNorm.jl Speed Test: FastNorm vs Standard Julia / LinearAlgebra")
     println("Trials per test: $trials (taking minimum time per call)")
     println("=" ^ 88)
 
@@ -78,8 +78,8 @@ function run_speed_test(trials::Int=5)
     # 1. Euclidean Norm: fast_norm vs LinearAlgebra.norm
     # -------------------------------------------------------------------------
     println("\n### 1. Euclidean Norm: `fast_norm` vs `LinearAlgebra.norm`\n")
-    println("| Vector Size | Standard (`LinearAlgebra.norm`) | FastLinAlg (`fast_norm`) | Speedup | Time Reduction |")
-    println("|:-----------:|:-------------------------------:|:------------------------:|:-------:|:--------------:|")
+    println("| Vector Size | Standard (`LinearAlgebra.norm`) | FastNorm (`fast_norm`) | Speedup | Time Reduction |")
+    println("|:-----------:|:-------------------------------:|:----------------------:|:-------:|:--------------:|")
 
     for n in sizes
         a = randn(n)
@@ -100,8 +100,8 @@ function run_speed_test(trials::Int=5)
     # 2. Squared Euclidean Norm: sqnorm vs LinearAlgebra.dot(a, a)
     # -------------------------------------------------------------------------
     println("\n### 2. Squared Euclidean Norm: `sqnorm` vs `LinearAlgebra.dot(a, a)`\n")
-    println("| Vector Size | Standard (`dot(a, a)`) | FastLinAlg (`sqnorm`) | Speedup | Time Reduction |")
-    println("|:-----------:|:----------------------:|:---------------------:|:-------:|:--------------:|")
+    println("| Vector Size | Standard (`dot(a, a)`) | FastNorm (`sqnorm`) | Speedup | Time Reduction |")
+    println("|:-----------:|:----------------------:|:-------------------:|:-------:|:--------------:|")
 
     for n in sizes
         a = randn(n)
@@ -122,8 +122,8 @@ function run_speed_test(trials::Int=5)
     # 3. Unit-Norm Normalization: norm1!! vs standard_norm1!
     # -------------------------------------------------------------------------
     println("\n### 3. Unit-Norm Normalization: `norm1!!` vs Standard (`./= norm`)\n")
-    println("| Vector Size | Standard (`./= norm`) | FastLinAlg (`norm1!!`) | Speedup | Time Reduction |")
-    println("|:-----------:|:---------------------:|:----------------------:|:-------:|:--------------:|")
+    println("| Vector Size | Standard (`./= norm`) | FastNorm (`norm1!!`) | Speedup | Time Reduction |")
+    println("|:-----------:|:---------------------:|:--------------------:|:-------:|:--------------:|")
 
     for n in sizes
         a = randn(n)
@@ -149,8 +149,8 @@ function run_speed_test(trials::Int=5)
     # 4. Vector Mean and Normalizer: vecmeannorm vs 2-Pass Standard
     # -------------------------------------------------------------------------
     println("\n### 4. Mean and Normalizer: `vecmeannorm` vs Standard 2-Pass\n")
-    println("| Vector Size | Standard (2-pass) | FastLinAlg (`vecmeannorm`) | Speedup | Time Reduction |")
-    println("|:-----------:|:-----------------:|:--------------------------:|:-------:|:--------------:|")
+    println("| Vector Size | Standard (2-pass) | FastNorm (`vecmeannorm`) | Speedup | Time Reduction |")
+    println("|:-----------:|:-----------------:|:------------------------:|:-------:|:--------------:|")
 
     for n in sizes
         a = randn(n)
@@ -174,7 +174,7 @@ function run_speed_test(trials::Int=5)
     # 5. In-Place Zero-Mean Unit-Norm Normalization: mean0norm1!! vs Standard
     # -------------------------------------------------------------------------
     println("\n### 5. Zero-Mean Unit-Norm: `mean0norm1!!` vs Standard Multi-Pass\n")
-    println("| Vector Size | Standard (Multi-pass) | FastLinAlg (`mean0norm1!!`) | Speedup | Time Reduction |")
+    println("| Vector Size | Standard (Multi-pass) | FastNorm (`mean0norm1!!`) | Speedup | Time Reduction |")
     println("|:-----------:|:---------------------:|:---------------------------:|:-------:|:--------------:|")
 
     for n in sizes

@@ -1,4 +1,4 @@
-module FastLinAlg
+module FastNorm
 
 using LoopVectorization, PrecompileTools, StaticArrays
 
@@ -102,4 +102,4 @@ mean0norm1!!(vec::AbstractVector{T}; minsqnorm::Real=floatmin(T)) where T = mean
 
 include("precompile.jl")
 
-end # module FastLinAlg
+end # module FastNorm

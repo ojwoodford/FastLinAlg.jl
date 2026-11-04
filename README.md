@@ -1,16 +1,16 @@
-# FastLinAlg.jl
+# FastNorm.jl
 
-[![Build Status](https://github.com/ojwoodford/FastLinAlg.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ojwoodford/FastLinAlg.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/ojwoodford/FastLinAlg.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ojwoodford/FastLinAlg.jl)
+[![Build Status](https://github.com/ojwoodford/FastNorm.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ojwoodford/FastNorm.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![codecov](https://codecov.io/gh/ojwoodford/FastNorm.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ojwoodford/FastNorm.jl)
 
 High-performance norms and normalization methods in Julia that trade a small amount of numerical precision for significant speedups and reduced memory passes.
 
-## Why FastLinAlg.jl?
+## Why FastNorm.jl?
 
 Standard Julia linear algebra is built around standard BLAS and LAPACK libraries via `LinearAlgebra.jl`. While standard implementations are designed to guarantee full IEEE-754 precision and protect against extreme floating-point underflow or overflow, they introduce significant overhead in performance-critical inner loops involving small- to medium-sized data:
 
 1. **BLAS Call and Thread-Checking Overhead**:
-   Standard routines such as `LinearAlgebra.norm` invoke external C/Fortran BLAS subroutines (`dnrm2`). On every call, this incurs `ccall` overhead, foreign function interface (FFI) boundary transitions, argument marshalling, and multithreading synchronization checks. For small- to medium-sized vectors, this administrative overhead dwarfs the actual floating-point work. FastLinAlg executes native Julia SIMD loops directly in CPU registers without leaving the Julia runtime.
+   Standard routines such as `LinearAlgebra.norm` invoke external C/Fortran BLAS subroutines (`dnrm2`). On every call, this incurs `ccall` overhead, foreign function interface (FFI) boundary transitions, argument marshalling, and multithreading synchronization checks. For small- to medium-sized vectors, this administrative overhead dwarfs the actual floating-point work. FastNorm executes native Julia SIMD loops directly in CPU registers without leaving the Julia runtime.
 
 2. **Over-Defensive Multi-Pass Scaling in Standard Norms**:
    `LinearAlgebra.norm` uses BLAS `dnrm2` (or `generic_norm2`), which executes defensive multi-pass scaling (e.g., Blue's algorithm) with extra conditional branches and scaling factors to protect against extreme underflow or overflow. When data magnitudes are well within normal IEEE-754 dynamic range, this defensive handling adds unnecessary latency. `fast_norm` and `sqnorm` compute norms directly in a single pass, delivering **up to 17x speedups** over `LinearAlgebra.norm`.
@@ -34,7 +34,7 @@ Standard Julia linear algebra is built around standard BLAS and LAPACK libraries
 
 ## Performance Evaluation
 
-A benchmark script is provided in [`examples/speed_test.jl`](examples/speed_test.jl). It benchmarks all FastLinAlg functions against standard implementations across multiple input sizes using warmup cycles, minimum-time filtering over multiple trials, and compiler barriers to prevent constant folding.
+A benchmark script is provided in [`examples/speed_test.jl`](examples/speed_test.jl). It benchmarks all FastNorm functions against standard implementations across multiple input sizes using warmup cycles, minimum-time filtering over multiple trials, and compiler barriers to prevent constant folding.
 
 To run the speed test:
 
@@ -48,7 +48,7 @@ Results collected on an Apple Silicon (M-series) CPU:
 
 #### 1. Euclidean Norm (`fast_norm` vs `LinearAlgebra.norm`)
 
-| Vector Size | Standard (`LinearAlgebra.norm`) | FastLinAlg (`fast_norm`) | Speedup | Time Reduction |
+| Vector Size | Standard (`LinearAlgebra.norm`) | FastNorm (`fast_norm`) | Speedup | Time Reduction |
 |:-----------:|:-------------------------------:|:------------------------:|:-------:|:--------------:|
 | 4 | ~5.4 ns | ~1.9 ns | ~2.9x | ~65.2% |
 | 16 | ~12.7 ns | ~2.9 ns | ~4.4x | ~77.4% |
@@ -59,7 +59,7 @@ Results collected on an Apple Silicon (M-series) CPU:
 
 #### 2. Squared Euclidean Norm (`sqnorm` vs `LinearAlgebra.dot(a, a)`)
 
-| Vector Size | Standard (`dot(a, a)`) | FastLinAlg (`sqnorm`) | Speedup | Time Reduction |
+| Vector Size | Standard (`dot(a, a)`) | FastNorm (`sqnorm`) | Speedup | Time Reduction |
 |:-----------:|:----------------------:|:---------------------:|:-------:|:--------------:|
 | 4 | ~9.3 ns | ~1.9 ns | ~5.0x | ~80.0% |
 | 16 | ~13.1 ns | ~2.8 ns | ~4.7x | ~78.7% |
@@ -70,7 +70,7 @@ Results collected on an Apple Silicon (M-series) CPU:
 
 #### 3. Unit-Norm Normalization (`norm1!!` vs Standard `./= norm`)
 
-| Vector Size | Standard (`./= norm`) | FastLinAlg (`norm1!!`) | Speedup | Time Reduction |
+| Vector Size | Standard (`./= norm`) | FastNorm (`norm1!!`) | Speedup | Time Reduction |
 |:-----------:|:---------------------:|:----------------------:|:-------:|:--------------:|
 | 4 | ~14.7 ns | ~15.6 ns | ~0.9x | -5.5% |
 | 16 | ~27.2 ns | ~19.3 ns | ~1.4x | ~29.0% |
@@ -81,7 +81,7 @@ Results collected on an Apple Silicon (M-series) CPU:
 
 #### 4. Mean and Normalizer (`vecmeannorm` vs Standard 2-Pass)
 
-| Vector Size | Standard (2-pass) | FastLinAlg (`vecmeannorm`) | Speedup | Time Reduction |
+| Vector Size | Standard (2-pass) | FastNorm (`vecmeannorm`) | Speedup | Time Reduction |
 |:-----------:|:-----------------:|:--------------------------:|:-------:|:--------------:|
 | 4 | ~4.7 ns | ~3.4 ns | ~1.4x | ~27.1% |
 | 16 | ~10.4 ns | ~4.4 ns | ~2.4x | ~57.9% |
@@ -92,7 +92,7 @@ Results collected on an Apple Silicon (M-series) CPU:
 
 #### 5. Zero-Mean Unit-Norm Normalization (`mean0norm1!!` vs Standard Multi-Pass)
 
-| Vector Size | Standard (Multi-pass) | FastLinAlg (`mean0norm1!!`) | Speedup | Time Reduction |
+| Vector Size | Standard (Multi-pass) | FastNorm (`mean0norm1!!`) | Speedup | Time Reduction |
 |:-----------:|:---------------------:|:---------------------------:|:-------:|:--------------:|
 | 4 | ~26.1 ns | ~24.9 ns | ~1.1x | ~4.8% |
 | 16 | ~47.9 ns | ~27.1 ns | ~1.8x | ~43.5% |
@@ -150,7 +150,7 @@ Normalizes a vector to zero mean and unit Euclidean norm ($\mu = 0, \|v\|_2 = 1$
 ## Example
 
 ```julia
-using FastLinAlg, StaticArrays
+using FastNorm, StaticArrays
 
 # Standard dense vectors
 a = randn(100)
