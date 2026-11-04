@@ -1,6 +1,6 @@
 module FastLinAlg
 
-using LoopVectorization, SparseArrays, StaticArrays
+using LoopVectorization, PrecompileTools, SparseArrays, StaticArrays
 
 export sqnorm, fast_norm, fast_dot, fast_bAb
 
@@ -98,5 +98,7 @@ function Base.cumsum!(A::AbstractVector)
     end
     return A
 end
+
+include("precompile.jl")
 
 end # module FastLinAlg
