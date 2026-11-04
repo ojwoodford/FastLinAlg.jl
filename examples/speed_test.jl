@@ -1,8 +1,6 @@
 # Speed test comparing FastLinAlg primitives to standard Julia / LinearAlgebra implementations
 using FastLinAlg
 using LinearAlgebra
-using SparseArrays
-using StaticArrays
 using Random
 
 """
@@ -51,32 +49,9 @@ function run_speed_test(trials::Int=5)
     println("=" ^ 88)
 
     # -------------------------------------------------------------------------
-    # 1. Vector Dot Product: fast_dot vs LinearAlgebra.dot
+    # 1. Euclidean Norm: fast_norm vs LinearAlgebra.norm
     # -------------------------------------------------------------------------
-    println("\n### 1. Vector Dot Product: `fast_dot` vs `LinearAlgebra.dot`\n")
-    println("| Vector Size | Standard (`LinearAlgebra.dot`) | FastLinAlg (`fast_dot`) | Speedup | Time Reduction |")
-    println("|:-----------:|:------------------------------:|:-----------------------:|:-------:|:--------------:|")
-
-    for n in [4, 16, 64, 256, 1024, 4096]
-        a = randn(n)
-        b = randn(n)
-        iters = max(1000, 500_000 ÷ n)
-
-        # Verification
-        @assert fast_dot(a, b) ≈ dot(a, b)
-
-        t_std = bench_call(() -> dot(a, b), iters, trials)
-        t_fast = bench_call(() -> fast_dot(a, b), iters, trials)
-
-        speedup = t_std / t_fast
-        reduction = (1.0 - t_fast / t_std) * 100.0
-        println("| $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
-    end
-
-    # -------------------------------------------------------------------------
-    # 2. Euclidean Norm: fast_norm vs LinearAlgebra.norm
-    # -------------------------------------------------------------------------
-    println("\n### 2. Euclidean Norm: `fast_norm` vs `LinearAlgebra.norm`\n")
+    println("\n### 1. Euclidean Norm: `fast_norm` vs `LinearAlgebra.norm`\n")
     println("| Vector Size | Standard (`LinearAlgebra.norm`) | FastLinAlg (`fast_norm`) | Speedup | Time Reduction |")
     println("|:-----------:|:-------------------------------:|:------------------------:|:-------:|:--------------:|")
 
@@ -96,9 +71,9 @@ function run_speed_test(trials::Int=5)
     end
 
     # -------------------------------------------------------------------------
-    # 3. Squared Euclidean Norm: sqnorm vs LinearAlgebra.dot(a, a)
+    # 2. Squared Euclidean Norm: sqnorm vs LinearAlgebra.dot(a, a)
     # -------------------------------------------------------------------------
-    println("\n### 3. Squared Euclidean Norm: `sqnorm` vs `LinearAlgebra.dot(a, a)`\n")
+    println("\n### 2. Squared Euclidean Norm: `sqnorm` vs `LinearAlgebra.dot(a, a)`\n")
     println("| Vector Size | Standard (`dot(a, a)`) | FastLinAlg (`sqnorm`) | Speedup | Time Reduction |")
     println("|:-----------:|:----------------------:|:---------------------:|:-------:|:--------------:|")
 
@@ -115,71 +90,6 @@ function run_speed_test(trials::Int=5)
         speedup = t_std / t_fast
         reduction = (1.0 - t_fast / t_std) * 100.0
         println("| $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
-    end
-
-    # -------------------------------------------------------------------------
-    # 4. Quadratic Form b' * A * b: fast_bAb vs LinearAlgebra.dot(b, A, b)
-    # -------------------------------------------------------------------------
-    println("\n### 4. Quadratic Form (b' * A * b): `fast_bAb` vs `LinearAlgebra.dot(b, A, b)`\n")
-
-    println("#### 4a. Dense Matrix & Vector (`Matrix{Float64}`)\n")
-    println("| Matrix Size | Standard (`dot(b, A, b)`) | FastLinAlg (`fast_bAb`) | Speedup | Time Reduction |")
-    println("|:-----------:|:-------------------------:|:-----------------------:|:-------:|:--------------:|")
-
-    for n in [8, 32, 128, 512]
-        A = randn(n, n)
-        b = randn(n)
-        iters = max(100, 100_000 ÷ (n * n ÷ 10 + 1))
-
-        # Verification
-        @assert fast_bAb(A, b) ≈ dot(b, A, b)
-
-        t_std = bench_call(() -> dot(b, A, b), iters, trials)
-        t_fast = bench_call(() -> fast_bAb(A, b), iters, trials)
-
-        speedup = t_std / t_fast
-        reduction = (1.0 - t_fast / t_std) * 100.0
-        println("| $n × $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
-    end
-
-    println("\n#### 4b. Static Arrays (`SMatrix` & `SVector`)\n")
-    println("| Array Size | Standard (`dot(b, A, b)`) | FastLinAlg (`fast_bAb`) | Speedup | Time Reduction |")
-    println("|:----------:|:-------------------------:|:-----------------------:|:-------:|:--------------:|")
-
-    for n in [2, 4, 8, 12]
-        A = SMatrix{n, n}(randn(n, n))
-        b = SVector{n}(randn(n))
-        iters = 50_000
-
-        # Verification
-        @assert fast_bAb(A, b) ≈ dot(b, A, b)
-
-        t_std = bench_call(() -> dot(b, A, b), iters, trials)
-        t_fast = bench_call(() -> fast_bAb(A, b), iters, trials)
-
-        speedup = t_std / t_fast
-        reduction = (1.0 - t_fast / t_std) * 100.0
-        println("| $n × $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
-    end
-
-    println("\n#### 4c. Sparse Matrix & Vector (`SparseMatrixCSC`, 5% Density)\n")
-    println("| Matrix Size | Non-zeros (nnz) | Standard (`dot(b, A, b)`) | FastLinAlg (`fast_bAb`) | Speedup | Time Reduction |")
-    println("|:-----------:|:---------------:|:-------------------------:|:-----------------------:|:-------:|:--------------:|")
-
-    for n in [50, 200, 1000]
-        A = sprandn(n, n, 0.05)
-        b = randn(n)
-        iters = max(100, 50_000 ÷ n)
-
-        # Verification
-        @assert fast_bAb(A, b) ≈ dot(b, A, b)
-
-        t_std = bench_call(() -> dot(b, A, b), iters, trials)
-        t_fast = bench_call(() -> fast_bAb(A, b), iters, trials)
-
-        speedup = t_std / t_fast
-        reduction = (1.0 - t_fast / t_std) * 100.0
-        println("| $n × $n | $(nnz(A)) | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
     end
 
     println()
