@@ -34,6 +34,30 @@ function format_time(t_ns::Float64)
     end
 end
 
+function standard_norm1!(vec::AbstractVector{T}) where T
+    n = norm(vec)
+    vec ./= max(n, floatmin(T))
+    return vec
+end
+
+function standard_vecmeannorm(vec::AbstractVector{T}) where T
+    m = sum(vec) / length(vec)
+    ss = zero(T)
+    @simd for v in vec
+        ss += (v - m)^2
+    end
+    n = T(1) / sqrt(max(ss, floatmin(T)))
+    return (m, n)
+end
+
+function standard_mean0norm1!(vec::AbstractVector{T}) where T
+    m = sum(vec) / length(vec)
+    vec .-= m
+    n = norm(vec)
+    vec ./= max(n, floatmin(T))
+    return vec
+end
+
 """
     run_speed_test(trials=5)
 
@@ -48,6 +72,8 @@ function run_speed_test(trials::Int=5)
     println("Trials per test: $trials (taking minimum time per call)")
     println("=" ^ 88)
 
+    sizes = [4, 16, 64, 256, 1024, 4096]
+
     # -------------------------------------------------------------------------
     # 1. Euclidean Norm: fast_norm vs LinearAlgebra.norm
     # -------------------------------------------------------------------------
@@ -55,7 +81,7 @@ function run_speed_test(trials::Int=5)
     println("| Vector Size | Standard (`LinearAlgebra.norm`) | FastLinAlg (`fast_norm`) | Speedup | Time Reduction |")
     println("|:-----------:|:-------------------------------:|:------------------------:|:-------:|:--------------:|")
 
-    for n in [4, 16, 64, 256, 1024, 4096]
+    for n in sizes
         a = randn(n)
         iters = max(1000, 500_000 ÷ n)
 
@@ -77,7 +103,7 @@ function run_speed_test(trials::Int=5)
     println("| Vector Size | Standard (`dot(a, a)`) | FastLinAlg (`sqnorm`) | Speedup | Time Reduction |")
     println("|:-----------:|:----------------------:|:---------------------:|:-------:|:--------------:|")
 
-    for n in [4, 16, 64, 256, 1024, 4096]
+    for n in sizes
         a = randn(n)
         iters = max(1000, 500_000 ÷ n)
 
@@ -86,6 +112,85 @@ function run_speed_test(trials::Int=5)
 
         t_std = bench_call(() -> dot(a, a), iters, trials)
         t_fast = bench_call(() -> sqnorm(a), iters, trials)
+
+        speedup = t_std / t_fast
+        reduction = (1.0 - t_fast / t_std) * 100.0
+        println("| $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
+    end
+
+    # -------------------------------------------------------------------------
+    # 3. Unit-Norm Normalization: norm1!! vs standard_norm1!
+    # -------------------------------------------------------------------------
+    println("\n### 3. Unit-Norm Normalization: `norm1!!` vs Standard (`./= norm`)\n")
+    println("| Vector Size | Standard (`./= norm`) | FastLinAlg (`norm1!!`) | Speedup | Time Reduction |")
+    println("|:-----------:|:---------------------:|:----------------------:|:-------:|:--------------:|")
+
+    for n in sizes
+        a = randn(n)
+        iters = max(1000, 500_000 ÷ n)
+
+        buf_std = copy(a)
+        buf_fast = copy(a)
+
+        # Verification
+        standard_norm1!(buf_std)
+        norm1!!(buf_fast)
+        @assert isapprox(buf_fast, buf_std, atol=1e-10)
+
+        t_std = bench_call(() -> standard_norm1!(buf_std), iters, trials)
+        t_fast = bench_call(() -> norm1!!(buf_fast), iters, trials)
+
+        speedup = t_std / t_fast
+        reduction = (1.0 - t_fast / t_std) * 100.0
+        println("| $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
+    end
+
+    # -------------------------------------------------------------------------
+    # 4. Vector Mean and Normalizer: vecmeannorm vs 2-Pass Standard
+    # -------------------------------------------------------------------------
+    println("\n### 4. Mean and Normalizer: `vecmeannorm` vs Standard 2-Pass\n")
+    println("| Vector Size | Standard (2-pass) | FastLinAlg (`vecmeannorm`) | Speedup | Time Reduction |")
+    println("|:-----------:|:-----------------:|:--------------------------:|:-------:|:--------------:|")
+
+    for n in sizes
+        a = randn(n)
+        iters = max(1000, 500_000 ÷ n)
+
+        # Verification
+        m_std, norm_std = standard_vecmeannorm(a)
+        m_fast, norm_fast = vecmeannorm(a)
+        @assert isapprox(m_fast, m_std, atol=1e-10)
+        @assert isapprox(norm_fast, norm_std, atol=1e-10)
+
+        t_std = bench_call(() -> standard_vecmeannorm(a), iters, trials)
+        t_fast = bench_call(() -> vecmeannorm(a), iters, trials)
+
+        speedup = t_std / t_fast
+        reduction = (1.0 - t_fast / t_std) * 100.0
+        println("| $n | $(format_time(t_std)) | $(format_time(t_fast)) | $(round(speedup, digits=1))x | $(round(reduction, digits=1))% |")
+    end
+
+    # -------------------------------------------------------------------------
+    # 5. In-Place Zero-Mean Unit-Norm Normalization: mean0norm1!! vs Standard
+    # -------------------------------------------------------------------------
+    println("\n### 5. Zero-Mean Unit-Norm: `mean0norm1!!` vs Standard Multi-Pass\n")
+    println("| Vector Size | Standard (Multi-pass) | FastLinAlg (`mean0norm1!!`) | Speedup | Time Reduction |")
+    println("|:-----------:|:---------------------:|:---------------------------:|:-------:|:--------------:|")
+
+    for n in sizes
+        a = randn(n)
+        iters = max(1000, 500_000 ÷ n)
+
+        buf_std = copy(a)
+        buf_fast = copy(a)
+
+        # Verification
+        standard_mean0norm1!(buf_std)
+        mean0norm1!!(buf_fast)
+        @assert isapprox(buf_fast, buf_std, atol=1e-10)
+
+        t_std = bench_call(() -> standard_mean0norm1!(buf_std), iters, trials)
+        t_fast = bench_call(() -> mean0norm1!!(buf_fast), iters, trials)
 
         speedup = t_std / t_fast
         reduction = (1.0 - t_fast / t_std) * 100.0

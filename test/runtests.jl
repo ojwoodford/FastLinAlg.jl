@@ -1,15 +1,208 @@
 using FastLinAlg, LinearAlgebra, StaticArrays, Test
 
 @testset "FastLinAlg.jl" begin
-    # sqnorm, fast_norm
-    a = randn(1001)
-    @test sqnorm(-3.0) == 9.0
-    @test sqnorm(4) == 16
-    @test sqnorm(a) ≈ dot(a, a)
-    @test sqnorm(Float64[]) == 0.0
-    @test sqnorm(SVector(3.0, 4.0)) == 25.0
 
-    @test fast_norm(a) ≈ norm(a)
-    @test fast_norm(Float64[]) == 0.0
-    @test fast_norm(SVector(3.0, 4.0)) == 5.0
+    @testset "sqnorm" begin
+        # Scalars
+        @test sqnorm(-3.0) == 9.0
+        @test sqnorm(-3.0f0) == 9.0f0
+        @test sqnorm(4) == 16
+        @test sqnorm(0.0) == 0.0
+        @test sqnorm(0.0f0) == 0.0f0
+
+        # Float64 Vectors
+        a64 = randn(1001)
+        @test sqnorm(a64) ≈ dot(a64, a64)
+        @test sqnorm(view(a64, 1:500)) ≈ dot(view(a64, 1:500), view(a64, 1:500))
+        @test sqnorm(Float64[]) == 0.0
+        @test sqnorm(SVector(3.0, 4.0)) == 25.0
+
+        # Float32 Vectors
+        a32 = randn(Float32, 1001)
+        @test sqnorm(a32) ≈ dot(a32, a32)
+        @test sqnorm(view(a32, 1:500)) ≈ dot(view(a32, 1:500), view(a32, 1:500))
+        @test sqnorm(Float32[]) == 0.0f0
+        @test sqnorm(SVector(3.0f0, 4.0f0)) == 25.0f0
+    end
+
+    @testset "fast_norm" begin
+        # Float64
+        a64 = randn(1001)
+        @test fast_norm(a64) ≈ norm(a64)
+        @test fast_norm(view(a64, 1:500)) ≈ norm(view(a64, 1:500))
+        @test fast_norm(Float64[]) == 0.0
+        @test fast_norm(SVector(3.0, 4.0)) == 5.0
+
+        # Float32
+        a32 = randn(Float32, 1001)
+        @test fast_norm(a32) ≈ norm(a32)
+        @test fast_norm(view(a32, 1:500)) ≈ norm(view(a32, 1:500))
+        @test fast_norm(Float32[]) == 0.0f0
+        @test fast_norm(SVector(3.0f0, 4.0f0)) == 5.0f0
+    end
+
+    @testset "norm1!!" begin
+        for T in (Float64, Float32)
+            tol = T == Float64 ? 1e-11 : 1e-4
+
+            # Mutable dense vectors (lengths 16, 1024)
+            for n in (16, 1024)
+                A = randn(T, n)
+                expected = A ./ norm(A)
+
+                # In-place verification
+                A_copy = copy(A)
+                res = norm1!!(A_copy)
+                @test res === A_copy  # Mutated in-place
+                @test isapprox(res, expected, atol=tol, rtol=tol)
+                @test isapprox(norm(res), one(T), atol=tol)
+            end
+
+            # SubArray (view into mutable array)
+            parent_arr = randn(T, 64)
+            v_view = view(parent_arr, 1:32)
+            expected_view = v_view ./ norm(v_view)
+            norm1!!(v_view)
+            @test isapprox(v_view, expected_view, atol=tol, rtol=tol)
+            @test isapprox(norm(v_view), one(T), atol=tol)
+
+            # Static vectors (immutable SVector)
+            s_data = randn(T, 16)
+            B = SVector{16, T}(s_data)
+            expected_s = SVector{16, T}(s_data ./ norm(s_data))
+            B_norm = norm1!!(B)
+            @test B_norm isa SVector{16, T}
+            @test isapprox(B_norm, expected_s, atol=tol, rtol=tol)
+            @test isapprox(norm(B_norm), one(T), atol=tol)
+
+            # Zero vector: tests default floatmin(T) clamping prevents NaN/Inf
+            z = zeros(T, 16)
+            z_norm = norm1!!(copy(z))
+            @test all(z_norm .== zero(T))
+            @test !any(isnan, z_norm)
+
+            # Custom minsqnorm keyword and positional arguments
+            c = randn(T, 16)
+            c_kw = norm1!!(copy(c); minsqnorm=1e-6)
+            c_pos = norm1!!(copy(c), 1e-6)
+            @test isapprox(c_kw, c_pos, atol=tol)
+            @test isapprox(norm(c_kw), one(T), atol=tol)
+        end
+    end
+
+    @testset "vecmeannorm" begin
+        # Helper to compute reference (mean, norm)
+        function ref_vecmeannorm(vec::AbstractVector{T}, minsqnorm=floatmin(T)) where T
+            m = sum(vec) / length(vec)
+            sq_diff = sum((v - m)^2 for v in vec)
+            n = T(1) / sqrt(max(sq_diff, T(minsqnorm)))
+            return (m, n)
+        end
+
+        for T in (Float64, Float32)
+            tol = T == Float64 ? 1e-11 : 1e-4
+
+            # Various sizes
+            for n in (16, 128, 1024)
+                v = randn(T, n)
+                m, inv_norm = vecmeannorm(v)
+                ref_m, ref_inv_norm = ref_vecmeannorm(v)
+                @test m isa T
+                @test inv_norm isa T
+                @test isapprox(m, ref_m, atol=tol, rtol=tol)
+                @test isapprox(inv_norm, ref_inv_norm, atol=tol, rtol=tol)
+
+                # SubArray view
+                v_sub = view(v, 1:(n ÷ 2))
+                m_sub, inv_norm_sub = vecmeannorm(v_sub)
+                ref_m_sub, ref_inv_norm_sub = ref_vecmeannorm(v_sub)
+                @test isapprox(m_sub, ref_m_sub, atol=tol, rtol=tol)
+                @test isapprox(inv_norm_sub, ref_inv_norm_sub, atol=tol, rtol=tol)
+            end
+
+            # StaticArrays
+            s = SVector{16, T}(randn(T, 16))
+            m_s, inv_norm_s = vecmeannorm(s)
+            ref_m_s, ref_inv_norm_s = ref_vecmeannorm(s)
+            @test m_s isa T
+            @test inv_norm_s isa T
+            @test isapprox(m_s, ref_m_s, atol=tol, rtol=tol)
+            @test isapprox(inv_norm_s, ref_inv_norm_s, atol=tol, rtol=tol)
+
+            # Constant vector: tests minsqnorm clamping prevents NaN/Inf
+            c = fill(T(5.0), 32)
+            # Default minsqnorm = floatmin(T)
+            m_c_def, inv_norm_c_def = vecmeannorm(c)
+            @test m_c_def ≈ T(5.0)
+            @test !isnan(inv_norm_c_def) && !isinf(inv_norm_c_def)
+
+            # Custom positional minsqnorm
+            m_c, inv_norm_c = vecmeannorm(c, T(1e-8))
+            @test m_c ≈ T(5.0)
+            @test inv_norm_c ≈ T(1) / sqrt(T(1e-8))
+            @test !isnan(inv_norm_c) && !isinf(inv_norm_c)
+
+            # minsqnorm as keyword argument
+            m_kw, inv_norm_kw = vecmeannorm(c; minsqnorm=1e-6)
+            @test inv_norm_kw ≈ T(1) / sqrt(T(1e-6))
+        end
+    end
+
+    @testset "mean0norm1!!" begin
+        # Reference normalization (2-pass)
+        function ref_normalize(vec)
+            centered = vec .- (sum(vec) / length(vec))
+            return centered ./ sqrt(dot(centered, centered))
+        end
+
+        for T in (Float64, Float32)
+            tol = T == Float64 ? 1e-11 : 1e-4
+
+            # Mutable dense vectors (lengths 16, 1024)
+            for n in (16, 1024)
+                A = randn(T, n)
+                expected = ref_normalize(A)
+
+                # In-place verification
+                A_copy = copy(A)
+                res = mean0norm1!!(A_copy)
+                @test res === A_copy  # Mutated in-place
+                @test isapprox(res, expected, atol=tol, rtol=tol)
+                @test isapprox(sum(res), zero(T), atol=n * eps(T) * 100)
+                @test isapprox(norm(res), one(T), atol=tol)
+            end
+
+            # SubArray (view into mutable array)
+            parent_arr = randn(T, 64)
+            v_view = view(parent_arr, 1:32)
+            expected_view = ref_normalize(v_view)
+            mean0norm1!!(v_view)
+            @test isapprox(v_view, expected_view, atol=tol, rtol=tol)
+
+            # Static vectors (immutable SVector)
+            s_data = randn(T, 16)
+            B = SVector{16, T}(s_data)
+            expected_s = SVector{16, T}(ref_normalize(s_data))
+            B_norm = mean0norm1!!(B)
+            @test B_norm isa SVector{16, T}
+            @test isapprox(B_norm, expected_s, atol=tol, rtol=tol)
+            @test isapprox(sum(B_norm), zero(T), atol=16 * eps(T) * 100)
+            @test isapprox(norm(B_norm), one(T), atol=tol)
+
+            # Constant vector with default minsqnorm = floatmin(T)
+            c = fill(T(7.0), 16)
+            c_norm_def = mean0norm1!!(copy(c))
+            @test all(isapprox.(c_norm_def, zero(T), atol=tol))
+            @test !any(isnan, c_norm_def)
+
+            # Constant vector with custom keyword minsqnorm
+            c_norm = mean0norm1!!(copy(c); minsqnorm=1e-8)
+            @test all(isapprox.(c_norm, zero(T), atol=tol))
+            @test !any(isnan, c_norm)
+
+            # Positional minsqnorm
+            c_norm_pos = mean0norm1!!(copy(c), 1e-8)
+            @test all(isapprox.(c_norm_pos, zero(T), atol=tol))
+        end
+    end
 end
