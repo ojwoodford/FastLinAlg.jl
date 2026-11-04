@@ -205,4 +205,42 @@ using FastNorm, LinearAlgebra, StaticArrays, Test
             @test all(isapprox.(c_norm_pos, zero(T), atol=tol))
         end
     end
+
+    @testset "StaticVector up to length 32" begin
+        for len in (2, 3, 4, 8, 16, 32)
+            s = SVector{len, Float64}(randn(len)...)
+            m = MVector{len, Float64}(s)
+
+            # sqnorm & fast_norm
+            @test sqnorm(s) ≈ dot(s, s)
+            @test sqnorm(m) ≈ dot(m, m)
+            @test fast_norm(s) ≈ norm(s)
+            @test fast_norm(m) ≈ norm(m)
+
+            # norm1!!
+            s_n = norm1!!(s)
+            @test s_n isa SVector{len, Float64}
+            @test norm(s_n) ≈ 1.0
+            m_n = norm1!!(m)
+            @test m_n === m
+            @test norm(m) ≈ 1.0
+
+            # vecmeannorm
+            m_s, n_s = vecmeannorm(s)
+            @test m_s ≈ sum(s) / len
+            @test n_s ≈ 1.0 / norm(s .- m_s)
+
+            # mean0norm1!!
+            s_m0 = mean0norm1!!(s)
+            @test s_m0 isa SVector{len, Float64}
+            @test isapprox(sum(s_m0), 0.0, atol=1e-10)
+            @test norm(s_m0) ≈ 1.0
+
+            m2 = MVector{len, Float64}(s)
+            m_m0 = mean0norm1!!(m2)
+            @test m_m0 === m2
+            @test isapprox(sum(m2), 0.0, atol=1e-10)
+            @test norm(m2) ≈ 1.0
+        end
+    end
 end
